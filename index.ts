@@ -12,9 +12,11 @@
  * Connection glyphs match the existing toolbar pattern (Hindsight, Decisions):
  *   ● up (success) · ◐ probing (warning) · ○ down (error).
  * Repo segment drops entirely off-repo; counts collapse to "0 packages" when
- * the repo has no dev-mission packages. Active-task title (status=in-progress)
- * wins over counts so heads-down work is the loudest signal; title is dim
- * and prefixed with a status glyph so the loudest cue stays the connection row.
+ * the repo has no dev-mission packages. Active-task title (newest-touched
+ * package among in-progress/review/uat/ready-for-production, by spec.md
+ * mtime) wins over counts so heads-down work is the loudest signal; title is
+ * dim and prefixed with a status glyph so the loudest cue stays the
+ * connection row.
  *
  * When the footer-toolbar renderer is not loaded (pi, prime-agent daemon
  * workers), falls back to its own belowEditor widget with a self-claim beat.
@@ -32,6 +34,7 @@
  */
 
 import { execFile } from "node:child_process"
+import { stat } from "node:fs/promises"
 import { homedir } from "node:os"
 import { join } from "node:path"
 import { promisify } from "node:util"
@@ -105,7 +108,7 @@ interface ProbeCache {
 }
 
 const CACHE_TTL_MS = 30_000 // matches PROBE_EVERY_BEATS * PUBLISH_INTERVAL_MS
-let vaultCache: ProbeCache | undefined
+let vaultCache: { at: number; root?: string } | undefined
 let cliCache: ProbeCache | undefined
 interface Package {
 	status: string
@@ -114,25 +117,30 @@ interface Package {
 	priority: string
 	updated: string
 	source_type: string
+	path: string
+	// spec.md mtime, stamped by probePackages for active packages only.
+	// Newest touched wins the title slot (see renderRepo).
+	mtimeMs?: number
 }
 let packagesCache: { at: number; packages: Package[] } | undefined
 let repoRootCache: { cwd: string; root: string | undefined } | undefined
 
-async function probeVault(): Promise<boolean> {
+async function resolveVaultRoot(): Promise<string | undefined> {
 	const now = Date.now()
-	if (vaultCache && now - vaultCache.at < CACHE_TTL_MS) return vaultCache.result
+	if (vaultCache && now - vaultCache.at < CACHE_TTL_MS) return vaultCache.root
 	try {
 		const { stdout } = await execFileP(
 			OBSIDIAN_BIN,
 			[`vault=${OBSIDIAN_VAULT}`, "vault", "info=path"],
 			{ timeout: PROBE_TIMEOUT_MS },
 		)
-		const ok = stdout.trim().length > 0 && !stdout.toLowerCase().includes("not found")
-		vaultCache = { at: now, result: ok }
-		return ok
+		const root = stdout.trim()
+		const ok = root.length > 0 && !root.toLowerCase().includes("not found")
+		vaultCache = { at: now, root: ok ? root : undefined }
+		return vaultCache.root
 	} catch {
-		vaultCache = { at: now, result: false }
-		return false
+		vaultCache = { at: now, root: undefined }
+		return undefined
 	}
 }
 
@@ -184,11 +192,38 @@ async function probePackages(cwd: string): Promise<Package[]> {
 		)
 		const parsed: unknown = JSON.parse(stdout)
 		const packages = Array.isArray(parsed) ? (parsed as Package[]) : []
+		await stampActiveMtimes(packages)
 		packagesCache = { at: now, packages }
 		return packages
 	} catch {
 		packagesCache = { at: now, packages: [] }
 		return []
+	}
+}
+
+// The active title slot must track the package most recently touched in this
+// repo. mission list orders rows alphabetically by task key, so dotfiles
+// (which routinely holds several concurrent in-progress packages) would
+// otherwise pin the title to whichever active key sorts first and never
+// surface a package created for a live session. `updated` frontmatter is
+// unreliable for this (often date-only or hand-edited), so stamp spec.md
+// mtimes; unreadable specs sort after dated ones without reordering peers.
+async function stampActiveMtimes(packages: Package[]): Promise<void> {
+	const active = packages.filter((pkg) => pkg.status in ACTIVE_GLYPH)
+	if (active.length < 2) return
+	const vaultRoot = await resolveVaultRoot()
+	if (!vaultRoot) return
+	const mtimes = await Promise.all(
+		active.map(async (pkg) => {
+			try {
+				return (await stat(join(vaultRoot, pkg.path))).mtimeMs
+			} catch {
+				return 0
+			}
+		}),
+	)
+	for (const [index, pkg] of active.entries()) {
+		pkg.mtimeMs = mtimes[index]
 	}
 }
 
@@ -214,7 +249,11 @@ function renderRepo(packages: Package[]): string {
 	for (const pkg of packages) {
 		counts[pkg.status] = (counts[pkg.status] ?? 0) + 1
 	}
-	const active = packages.find((pkg) => pkg.status in ACTIVE_GLYPH)
+	// Newest-touched active package wins the title slot; ties and unstamped
+	// packages fall back to list order (Array.sort is stable).
+	const active = packages
+		.filter((pkg) => pkg.status in ACTIVE_GLYPH)
+		.sort((a, b) => (b.mtimeMs ?? 0) - (a.mtimeMs ?? 0))[0]
 	if (active) {
 		const glyph = ACTIVE_GLYPH[active.status] ?? "◐"
 		return paint("dim", `${glyph} ${truncateTitle(active.title)}`)
@@ -281,8 +320,8 @@ export default function devMissionStatus(pi: ExtensionAPI) {
 		inFlight = true
 		try {
 			await Promise.all([
-				probeVault().then((ok) => {
-					vault = ok
+				resolveVaultRoot().then((root) => {
+					vault = root !== undefined
 				}),
 				probeCli().then((ok) => {
 					cli = ok

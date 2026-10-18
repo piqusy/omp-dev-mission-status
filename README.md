@@ -1,4 +1,4 @@
-# dev-mission-status
+# omp-dev-mission-status
 
 oh-my-pi footer section for observaitory + current repo dev-mission state.
 
@@ -12,10 +12,13 @@ own row below the `infra` row):
 - Connection glyphs match the existing toolbar pattern (`Hindsight: ● hx`,
   `Decisions: ● dec`): `●` up (success), `◐` probing (warning),
   `○` down (error — pops at a glance).
-- Repo segment: active task title (in-progress, review, uat,
-  ready-for-production) wins over counts, prefixed with a status glyph
-  (`◐`/`◉`/`◆`/`▲`); falls back to per-status counts when nothing's active;
-  collapses to `0 packages` when the repo has no dev-mission work.
+- Repo segment: active task title wins over counts. Active package =
+  newest-touched `spec.md` (mtime) among `in-progress`/`review`/`uat`/
+  `ready-for-production` — recency matters because busy repos (dotfiles)
+  hold several concurrent in-progress packages and list order is just
+  alphabetical. Prefixed with a status glyph (`◐`/`◉`/`◆`/`▲`); falls back
+  to per-status counts when nothing's active; collapses to `0 packages`
+  when the repo has no dev-mission work.
 - Off-repo: drops the repo segment entirely.
 
 ## Probes
