@@ -5,9 +5,9 @@ oh-my-pi footer section for observaitory + current repo dev-mission state.
 Renders one line in the toolbar (rendered by `omp-footer-custom`, order 25,
 own row below the `infra` row):
 
-    obs: ● vault  ● cli · ◐ Caliber PR preview and status column
-    obs: ● vault  ● cli · 0 in-prog  2 review · 17 backlog
-    obs: ● vault  ● cli                   (off-repo: no package segment)
+    Obs: ● vault  ● cli · ◐ Caliber PR preview and status column
+    Obs: ● vault  ● cli · 0 in-prog  2 review · 17 backlog
+    Obs: ● vault  ● cli                   (off-repo: no package segment)
 
 - Connection glyphs match the existing toolbar pattern (`Hindsight: ● hx`,
   `Decisions: ● dec`): `●` up (success), `◐` probing (warning),

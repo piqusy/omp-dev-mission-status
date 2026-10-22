@@ -5,9 +5,9 @@
  * Rendered by the omp-footer-custom renderer inside the single toolbar widget
  * (order 25, own row below the infra row):
  *
- *   obs: ● vault  ● cli · ◐ Caliber PR preview and status column
- *   obs: ● vault  ● cli · 0 in-prog  2 review · 17 backlog
- *   obs: ● vault  ● cli                   (off-repo: no package segment)
+ *   Obs: ● vault  ● cli · ◐ Caliber PR preview and status column
+ *   Obs: ● vault  ● cli · 0 in-prog  2 review · 17 backlog
+ *   Obs: ● vault  ● cli                   (off-repo: no package segment)
  *
  * Connection glyphs match the existing toolbar pattern (Hindsight, Decisions):
  *   ● up (success) · ◐ probing (warning) · ○ down (error).
@@ -51,7 +51,7 @@ const ATTACH_DELAYS_MS = [0, 150, 500, 1200, 2500]
 const WIDGET_KEY = "dev-mission-toolbar"
 
 const SECTION_ID = "dev-mission"
-const SECTION_ORDER = 25 // below infra row (hindsight 15 + decisions 20)
+const SECTION_ORDER = 25 // joins infra row after hindsight 15 + decisions 20
 
 const OBSERVATORY_BIN = process.env.DEV_MISSION_OBSERVATORY_BIN?.trim() || "observaitory"
 const OBSIDIAN_BIN = process.env.DEV_MISSION_OBSIDIAN_BIN?.trim() || "obsidian-cli"
@@ -274,7 +274,7 @@ function renderLine(
 	cli: ConnState,
 	packages: Package[] | undefined,
 ): string[] {
-	const segments: string[] = [paint("dim", "obs:")]
+	const segments: string[] = [paint("dim", "Obs:")]
 	// Plain `●` matches the existing toolbar (Hindsight: ● hx, Decisions: ● dec).
 	// ◐ = probing, ○ = down — distinct from filled `●`.
 	const glyphFor = (state: ConnState): string => (state === undefined ? "◐" : state ? "●" : "○")
@@ -308,7 +308,7 @@ export default function devMissionStatus(pi: ExtensionAPI) {
 				ctx.ui.setWidget(WIDGET_KEY, undefined)
 				ownWidget = false
 			}
-			sections.setFooterSection(SECTION_ID, SECTION_ORDER, lines)
+			sections.setFooterSection(SECTION_ID, SECTION_ORDER, lines, "infra")
 			return
 		}
 		ownWidget = true
